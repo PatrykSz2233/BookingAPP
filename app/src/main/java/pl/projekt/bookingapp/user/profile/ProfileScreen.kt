@@ -1,3 +1,4 @@
+// ProfileScreen.kt
 package pl.projekt.bookingapp.user.profile
 
 import androidx.compose.foundation.layout.*
@@ -5,94 +6,124 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
+import pl.projekt.bookingapp.data.model.User
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    onLogout: () -> Unit,
-    viewModel: ProfileViewModel = hiltViewModel()
+    viewModel: ProfileViewModel = hiltViewModel(),
+    onLogout: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val user = uiState.user
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
-    // --- KLUCZOWY FRAGMENT ---
-    // Te zmienne stanu `remember` przechowują to, co użytkownik wpisuje.
-    // Są niezależne od `uiState` aż do momentu zapisu.
-    // Klucz `user` sprawia, że resetują się, gdy dane z ViewModelu się zmienią.
-    var firstName by remember(user) { mutableStateOf(user?.firstName ?: "") }
-    var lastName by remember(user) { mutableStateOf(user?.lastName ?: "") }
-    var phone by remember(user) { mutableStateOf(user?.phoneNumber ?: "") }
+    // Lokalny stan pól po wczytaniu użytkownika
+    var firstName by remember(uiState.user) { mutableStateOf(uiState.user?.firstName ?: "") }
+    var lastName by remember(uiState.user) { mutableStateOf(uiState.user?.lastName ?: "") }
+    var email by remember(uiState.user) { mutableStateOf(uiState.user?.email ?: "") }
+    var phone by remember(uiState.user) { mutableStateOf(uiState.user?.phoneNumber ?: "") }
 
+    // Pokazanie komunikatu o zapisaniu
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
-            snackbarHostState.showSnackbar("Profil zaktualizowany!")
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Profil został zapisany")
+            }
             viewModel.onSavedMessageShown()
         }
     }
 
     Scaffold(
+        topBar = {
+            TopAppBar(title = { Text("Profil") })
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        if (uiState.isLoading && user == null) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (user != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Twój Profil", style = MaterialTheme.typography.headlineMedium)
-                Spacer(Modifier.height(8.dp))
-                Text("Uzupełnij dane, aby móc rezerwować wizyty.", style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(24.dp))
-
-                // Ta lambda `onValueChange = { firstName = it }` aktualizuje stan,
-                // co powoduje, że pole tekstowe się odświeża z nową wartością.
-                OutlinedTextField(
-                    value = firstName,
-                    onValueChange = { firstName = it },
-                    label = { Text("Imię") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = lastName,
-                    onValueChange = { lastName = it },
-                    label = { Text("Nazwisko") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = phone,
-                    onValueChange = { phone = it },
-                    label = { Text("Numer telefonu") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(24.dp))
-
-                Button(
-                    onClick = { viewModel.updateUserProfile(firstName, lastName, phone) },
-                    modifier = Modifier.fillMaxWidth()
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            if (uiState.isLoading) {
+                CircularProgressIndicator(Modifier.align(Alignment.Center))
+            } else {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Zapisz zmiany")
-                }
+                    OutlinedTextField(
+                        value = firstName,
+                        onValueChange = { firstName = it },
+                        label = { Text("Imię") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = lastName,
+                        onValueChange = { lastName = it },
+                        label = { Text("Nazwisko") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = {},
+                        label = { Text("Email") },
+                        singleLine = true,
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = phone,
+                        onValueChange = { phone = it },
+                        label = { Text("Telefon") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                Spacer(Modifier.height(16.dp))
-                OutlinedButton(
-                    onClick = {
-                        viewModel.logout()
-                        onLogout()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Wyloguj")
+                    uiState.error?.let { err ->
+                        Text(
+                            text = err,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            // Uaktualniamy profil przez VM
+                            uiState.user?.let { current ->
+                                val updated = current.copy(
+                                    firstName = firstName,
+                                    lastName = lastName,
+                                    phoneNumber = phone
+                                )
+                                viewModel.updateProfile(updated)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Zapisz zmiany")
+                    }
+
+                    TextButton(
+                        onClick = {
+                            viewModel.logout {
+                                onLogout()
+                            }
+                        },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("Wyloguj się")
+                    }
                 }
             }
         }

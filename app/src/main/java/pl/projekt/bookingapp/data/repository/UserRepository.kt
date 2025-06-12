@@ -1,34 +1,27 @@
 package pl.projekt.bookingapp.data.repository
 
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import pl.projekt.bookingapp.data.model.User
 import javax.inject.Inject
 
-interface UserRepository {
-    suspend fun getUserProfile(uid: String): Result<User?>
-    suspend fun updateUserProfile(user: User): Result<Unit>
-}
-
-class UserRepositoryImpl @Inject constructor(
+class UserRepository @Inject constructor(
+    private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore
-) : UserRepository {
-    override suspend fun getUserProfile(uid: String): Result<User?> {
-        return try {
-            val document = firestore.collection("users").document(uid).get().await()
-            val user = document.toObject(User::class.java)
-            Result.success(user)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+) {
+    suspend fun getCurrentUser(): User? {
+        val uid = auth.currentUser?.uid ?: return null
+        val snapshot = firestore.collection("users").document(uid).get().await()
+        return snapshot.toObject(User::class.java)?.copy(uid = uid)
     }
 
-    override suspend fun updateUserProfile(user: User): Result<Unit> {
-        return try {
-            firestore.collection("users").document(user.uid).set(user).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    suspend fun updateUserProfile(user: User) {
+        val uid = auth.currentUser?.uid ?: return
+        firestore.collection("users").document(uid).set(user).await()
+    }
+
+    fun logout() {
+        auth.signOut()
     }
 }

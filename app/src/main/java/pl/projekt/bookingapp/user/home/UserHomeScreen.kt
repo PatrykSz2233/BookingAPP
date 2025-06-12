@@ -1,6 +1,7 @@
 package pl.projekt.bookingapp.user.home
 
 import android.Manifest
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,8 +13,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -27,18 +39,18 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import pl.projekt.bookingapp.data.model.Business
 
+private const val TAG = "UserHomeScreen"
+
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun UserHomeScreen(
-    // Przyjmujemy akcję kliknięcia od rodzica (MainScreen)
     onBusinessClick: (String) -> Unit,
     viewModel: UserHomeViewModel = hiltViewModel()
 ) {
-    // Kod do obsługi uprawnień lokalizacji
     val locationPermissionsState = rememberMultiplePermissionsState(
         permissions = listOf(
             Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION
         )
     )
 
@@ -50,8 +62,6 @@ fun UserHomeScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
-    // Ten Scaffold jest tylko dla tego ekranu, aby miał swój własny TopAppBar.
-    // Dolne menu jest w Scaffoldzie w MainScreen.
     Scaffold(
         topBar = {
             TopAppBar(
@@ -65,24 +75,28 @@ fun UserHomeScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues), // Używamy paddingu od Scaffolda
+                .padding(paddingValues),
             contentAlignment = Alignment.Center
         ) {
-            if (uiState.isLoading) {
-                CircularProgressIndicator()
-            } else if (uiState.error != null) {
-                Text("Błąd: ${uiState.error}")
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(uiState.businesses) { business ->
-                        // Przekazujemy akcję kliknięcia do karty
-                        BusinessCard(business = business, onClick = {
-                            onBusinessClick(business.uid) // Wywołujemy akcję z ID firmy
-                        })
+            when {
+                uiState.isLoading -> CircularProgressIndicator()
+                uiState.error != null -> Text("Błąd: ${uiState.error}")
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(uiState.businesses) { business ->
+                            BusinessCard(business = business, onClick = {
+                                try {
+                                    Log.d(TAG, "Kliknięto firmę id=${business.uid}")
+                                    onBusinessClick(business.uid)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Błąd nawigacji do szczegółów firmy id=${business.uid}", e)
+                                }
+                            })
+                        }
                     }
                 }
             }
@@ -94,10 +108,10 @@ fun UserHomeScreen(
 @Composable
 fun BusinessCard(
     business: Business,
-    onClick: () -> Unit // Karta przyjmuje akcję do wykonania
+    onClick: () -> Unit
 ) {
     Card(
-        onClick = onClick, // Ustawiamy akcję na całej karcie
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
@@ -106,8 +120,8 @@ fun BusinessCard(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(business.imageUrl)
                     .crossfade(true)
-                    .placeholder(android.R.drawable.ic_menu_gallery) // Placeholder na czas ładowania
-                    .error(android.R.drawable.ic_menu_report_image) // Obrazek w razie błędu
+                    .placeholder(android.R.drawable.ic_menu_gallery)
+                    .error(android.R.drawable.ic_menu_report_image)
                     .build(),
                 contentDescription = "Zdjęcie firmy ${business.name}",
                 modifier = Modifier

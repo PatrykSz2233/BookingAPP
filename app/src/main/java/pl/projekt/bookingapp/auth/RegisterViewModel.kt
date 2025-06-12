@@ -2,44 +2,60 @@ package pl.projekt.bookingapp.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import pl.projekt.bookingapp.data.repository.AuthRepository
 import javax.inject.Inject
 
 data class RegisterUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val registrationSuccess: Boolean = false
+    val success: Boolean = false
 )
 
 @HiltViewModel
 class RegisterViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val auth: FirebaseAuth,
+    private val firestore: FirebaseFirestore
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RegisterUiState())
     val uiState = _uiState.asStateFlow()
 
-    fun registerUser(name: String, email: String, pass: String, isBusiness: Boolean) {
-        if (name.isBlank() || email.isBlank() || pass.length < 6) {
-            _uiState.update { it.copy(error = "Sprawdź dane. Hasło musi mieć min. 6 znaków.") }
-            return
-        }
+    fun register(email: String, password: String, fullName: String, phone: String) {
+        _uiState.update { it.copy(isLoading = true, error = null) }
 
-        val userType = if (isBusiness) "business" else "client"
+        val nameParts = fullName.trim().split(" ", limit = 2)
+        val firstName = nameParts.getOrElse(0) { "" }
+        val lastName = nameParts.getOrElse(1) { "" }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            val result = authRepository.signUp(email, pass, name, userType)
-            result.onSuccess {
-                _uiState.update { it.copy(isLoading = false, registrationSuccess = true) }
-            }.onFailure { exception ->
-                _uiState.update { it.copy(isLoading = false, error = exception.message) }
-            }
+            auth.createUserWithEmailAndPassword(email, password)
+                .addOnSuccessListener { authResult ->
+                    val uid = authResult.user?.uid ?: return@addOnSuccessListener
+                    val userMap = mapOf(
+                        "firstName" to firstName,
+                        "lastName" to lastName,
+                        "phoneNumber" to phone,
+                        "email" to email,
+                        "userType" to "client"
+                    )
+                    firestore.collection("users").document(uid)
+                        .set(userMap)
+                        .addOnSuccessListener {
+                            _uiState.update { it.copy(isLoading = false, success = true) }
+                        }
+                        .addOnFailureListener { e ->
+                            _uiState.update { it.copy(isLoading = false, error = e.localizedMessage) }
+                        }
+                }
+                .addOnFailureListener { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.localizedMessage) }
+                }
         }
     }
 }

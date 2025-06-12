@@ -11,6 +11,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun RegisterScreen(
@@ -19,57 +20,100 @@ fun RegisterScreen(
     viewModel: RegisterViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var isBusinessAccount by remember { mutableStateOf(false) }
+    var phone by remember { mutableStateOf("") }
 
-    LaunchedEffect(uiState.registrationSuccess) {
-        if (uiState.registrationSuccess) {
+    LaunchedEffect(uiState.success) {
+        if (uiState.success) {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Konto zostało utworzone ✅")
+            }
             onRegistrationSuccess()
         }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Utwórz konto", style = MaterialTheme.typography.headlineLarge)
-        Spacer(Modifier.height(24.dp))
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Utwórz konto", style = MaterialTheme.typography.headlineLarge)
+            Spacer(Modifier.height(24.dp))
 
-        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Imię lub nazwa firmy") }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Hasło (min. 6 znaków)") }, modifier = Modifier.fillMaxWidth(), visualTransformation = PasswordVisualTransformation())
-        Spacer(Modifier.height(16.dp))
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Switch(checked = isBusinessAccount, onCheckedChange = { isBusinessAccount = it })
-            Spacer(Modifier.width(8.dp))
-            Text("Tworzę konto firmowe")
-        }
-        Spacer(Modifier.height(16.dp))
-
-
-        if (uiState.isLoading) {
-            CircularProgressIndicator()
-        } else {
-            Button(
-                onClick = { viewModel.registerUser(name, email, password, isBusinessAccount) },
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Imię i nazwisko") },
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Zarejestruj się")
+            )
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = phone,
+                onValueChange = { phone = it },
+                label = { Text("Numer telefonu") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Hasło (min. 6 znaków)") },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(24.dp))
+
+            if (uiState.isLoading) {
+                CircularProgressIndicator()
+            } else {
+                Button(
+                    onClick = {
+                        viewModel.register(email, password, name, phone)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Text("Zarejestruj się")
+                }
             }
-        }
 
-        uiState.error?.let {
-            Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
-        }
+            uiState.error?.let {
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
 
-        TextButton(onClick = onNavigateBackToLogin, modifier = Modifier.padding(top = 8.dp)) {
-            Text("Masz już konto? Zaloguj się")
+            TextButton(onClick = onNavigateBackToLogin, modifier = Modifier.padding(top = 16.dp)) {
+                Text("Masz już konto? Zaloguj się")
+            }
         }
     }
 }

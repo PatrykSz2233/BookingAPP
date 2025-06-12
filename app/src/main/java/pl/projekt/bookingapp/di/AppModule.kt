@@ -15,28 +15,30 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
 
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideFirebaseFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
 
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideAuthRepository(impl: AuthRepositoryImpl): AuthRepository = impl
 
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideBusinessRepository(impl: BusinessRepositoryImpl): BusinessRepository = impl
 
-    @Provides
-    @Singleton
-    fun provideUserRepository(impl: UserRepositoryImpl): UserRepository = impl
+    @Provides @Singleton
+    fun provideUserRepository(auth: FirebaseAuth, firestore: FirebaseFirestore): UserRepository =
+        UserRepository(auth, firestore)
 
-    @Provides
-    @Singleton
+    // *** NOWY PROVIDER dla ServiceRepository ***
+    @Provides @Singleton
+    fun provideServiceRepository(impl: ServiceRepositoryImpl): ServiceRepository = impl
+
+    @Provides @Singleton
+    fun provideBookingRepository(impl: BookingRepositoryImpl): BookingRepository =
+        impl
+    @Provides @Singleton
     fun provideFusedLocationProviderClient(@ApplicationContext context: Context) =
         LocationServices.getFusedLocationProviderClient(context)
 }

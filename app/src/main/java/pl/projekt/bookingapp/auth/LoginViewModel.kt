@@ -1,3 +1,4 @@
+// LoginViewModel.kt
 package pl.projekt.bookingapp.auth
 
 import androidx.lifecycle.ViewModel
@@ -20,12 +21,10 @@ data class LoginUiState(
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository
 ) : ViewModel() {
-
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState = _uiState.asStateFlow()
 
     fun login(email: String, pass: String) {
-        // Podstawowa walidacja
         if (email.isBlank() || pass.isBlank()) {
             _uiState.update { it.copy(error = "Email i hasło nie mogą być puste.") }
             return
@@ -33,12 +32,21 @@ class LoginViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
+            // używamy signIn(), bo tak definiuje to AuthRepository :contentReference[oaicite:0]{index=0}
             val result = authRepository.signIn(email, pass)
             result.onSuccess {
                 _uiState.update { it.copy(isLoading = false, loginSuccess = true) }
             }.onFailure { exception ->
-                _uiState.update { it.copy(isLoading = false, error = exception.message ?: "Wystąpił nieznany błąd") }
+                _uiState.update {
+                    it.copy(isLoading = false, error = exception.message ?: "Wystąpił błąd logowania")
+                }
             }
+        }
+    }
+
+    fun checkIfUserIsLoggedIn() {
+        if (authRepository.isUserLoggedIn()) {
+            _uiState.update { it.copy(loginSuccess = true) }
         }
     }
 }
